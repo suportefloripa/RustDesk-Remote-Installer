@@ -1,22 +1,57 @@
-[general]
-USE_INI=yes
-ORG_NAME=MinhaEmpresa
-TECH_NAME=Fulano
+; ============================================================================
+; RustDesk Auto Installer - Configuration File
+; ============================================================================
+; This file contains custom settings for RustDesk installation
+; Rename this file to "remoto.ini" and fill in your information
+; ============================================================================
 
-[rustdesk]
-RUSTDESK_CFG=
-RUSTDESK_PW=
+; URL of your server where install.ps1 is hosted (WITHOUT the filename)
+; IMPORTANT: This should be the DIRECTORY path, not the full file path
+; Example: If your install.ps1 is at https://yoursite.com/subfolder/install.ps1
+;          Then SERVER_URL should be: https://yoursite.com/subfolder
+; The script will automatically append "/install.ps1" to this URL
+; Examples: http://yourserver.com or https://yourdomain.com/scripts
+SERVER_URL=http://yourserver.com
 
-[email]
-MAIL_MODE=php
-MAIL_URL=https://seu-dominio/rustdesk-mail.php
-MAIL_TOKEN=
-MAIL_TO=suporte@dominio.com
-MAIL_FROM=nao-responder@dominio.com
+; Password to be configured on client's RustDesk
+; This password allows you to remotely access the computer
+; Recommendation: Use a strong and unique password
+RUSTDESK_PASSWORD=YourSecurePasswordHere
 
-[smtp]
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
-SMTP_TLS=true
+; Configuration string from your RustDesk server
+; Get this string from your RustDesk server admin panel
+; This string configures the client to connect to your server
+RUSTDESK_CONFIG=YourConfigStringHere
+
+; API key for authentication
+; This key is used to validate requests to the PHP script
+; Recommendation: Generate a strong random key (32+ characters)
+; You can generate one at: https://www.random.org/strings/
+API_KEY=YourSecureAPIKeyHere
+
+; Full URL of the PHP script that sends email
+; This script must be on your server (inside FilesForMailSend folder)
+; Example: https://yourserver.com/FilesForMailSend/rustdesk-mail.php
+MAIL_SCRIPT_URL=https://yourserver.com/FilesForMailSend/rustdesk-mail.php
+
+; Send email notification? (yes or no)
+; If set to 'no', the ID will not be sent by email
+; Useful if you don't need notification or don't have email server configured
+SEND_EMAIL=yes
+
+; ============================================================================
+; USAGE INSTRUCTIONS
+; ============================================================================
+; 1. Rename this file from "remoto.ini.example" to "remoto.ini"
+; 2. Fill in all settings above with your data
+; 3. Keep remoto.ini file together with remoto.bat
+; 4. Send remoto.bat (and optionally remoto.ini) to your clients
+; 
+; NOTE: If you prefer not to use the .ini file, you can edit the variables
+; directly in the remoto.bat file and set USE_INI_FILE=no
+;
+; ABOUT SEND_EMAIL:
+; - If SEND_EMAIL=yes: The ID will be sent by email after installation
+; - If SEND_EMAIL=no: The ID will only be displayed on screen, no email sent
+; ============================================================================
+
