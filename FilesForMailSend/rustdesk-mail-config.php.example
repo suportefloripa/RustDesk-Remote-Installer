@@ -1,0 +1,68 @@
+<?php
+/**
+ * ============================================================================
+ * RustDesk Mail Notification - Configuration File
+ * ============================================================================
+ * This file contains email settings for ID notification
+ * Rename to "rustdesk-mail-config.php" and fill in your information
+ * ============================================================================
+ */
+
+// ============================================================================
+// SECURITY SETTINGS
+// ============================================================================
+
+// API key for authentication (must be the same configured in remoto.bat/ini)
+// Recommendation: Use a strong random key (32+ characters)
+define('API_KEY', 'YourSecureAPIKeyHere');
+
+// ============================================================================
+// EMAIL SETTINGS
+// ============================================================================
+
+// Timezone
+define('TIMEZONE', 'America/Sao_Paulo');
+
+// Path to PHPMailer (relative to FilesForMailSend folder)
+// Files are in the PHPMailer-master subfolder
+define('PHPMAILER_PATH', __DIR__ . '/PHPMailer-master/src/PHPMailer.php');
+define('SMTP_PATH', __DIR__ . '/PHPMailer-master/src/SMTP.php');
+
+// SMTP server settings
+define('SMTP_HOST', 'smtp.yourserver.com');
+define('SMTP_PORT', 465); // 465 for SSL, 587 for TLS
+define('SMTP_SECURE', 'ssl'); // 'ssl' or 'tls'
+define('SMTP_AUTH', true);
+
+// SMTP authentication credentials
+define('SMTP_USERNAME', 'your-email@yourdomain.com');
+define('SMTP_PASSWORD', 'YourEmailPasswordHere');
+
+// Email sender
+define('MAIL_FROM_EMAIL', 'your-email@yourdomain.com');
+define('MAIL_FROM_NAME', 'RustDesk System');
+
+// Email recipient (who will receive notifications)
+define('MAIL_TO_EMAIL', 'your-destination-email@gmail.com');
+
+// Message settings
+define('MAIL_SUBJECT_PREFIX', 'RustDesk ID'); // Subject prefix
+
+// SMTP debug level (0 = off, 1 = errors, 2 = all messages)
+define('SMTP_DEBUG', 0);
+
+// ============================================================================
+// USAGE INSTRUCTIONS
+// ============================================================================
+// 1. Rename this file from "rustdesk-mail-config.php.example" to "rustdesk-mail-config.php"
+// 2. Fill in all settings above with your data
+// 3. PHPMailer is already in the PHPMailer-master subfolder (no need to change paths)
+// 4. Set file permissions so only the web server can read it (chmod 600)
+// 5. Never share this file or commit it to public repositories
+//
+// NOTE: PHPMailer paths use __DIR__ which points to the current folder
+// (FilesForMailSend), so relative paths will work automatically.
+// ============================================================================
+
+?>
+
