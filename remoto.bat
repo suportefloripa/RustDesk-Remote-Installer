@@ -1,103 +1,140 @@
 @echo off
-chcp 65001
+chcp 65001 >nul
 cls
-setlocal EnableExtensions
+
+REM ============================================================================
+REM RustDesk Auto Installer - Batch Script
+REM ============================================================================
+REM This script downloads and executes the RustDesk installation
+REM Can read settings from a remoto.ini file or use default values
+REM ============================================================================
+
 set "params=%*"
 cd /d "%~dp0" && ( if exist "%temp%\getadmin.vbs" del "%temp%\getadmin.vbs" ) && fsutil dirty query %systemdrive% 1>nul 2>nul || (  echo Set UAC = CreateObject^("Shell.Application"^) : UAC.ShellExecute "cmd.exe", "/k cd ""%~sdp0"" && ""%~s0"" %params%", "", "runas", 1 >> "%temp%\getadmin.vbs" && "%temp%\getadmin.vbs" && exit /B )
 
-set "USE_INI=yes"
-set "INI_FILE=remoto.ini"
+REM ============================================================================
+REM DEFAULT SETTINGS (FALLBACK)
+REM ============================================================================
+REM Edit these variables with your own settings
+REM These will be used if remoto.ini file doesn't exist or USE_INI_FILE=no
 
-set "ORG_NAME="
-set "TECH_NAME="
-set "RUSTDESK_CFG="
-set "RUSTDESK_PW="
-set "MAIL_MODE=php"
-set "MAIL_URL="
-set "MAIL_TOKEN="
-set "MAIL_TO="
-set "MAIL_FROM="
-set "SMTP_HOST="
-set "SMTP_PORT=587"
-set "SMTP_USER="
-set "SMTP_PASS="
-set "SMTP_TLS=true"
+SET "USE_INI_FILE=yes"
 
-if /i "%USE_INI%"=="yes" if exist "%~dp0%INI_FILE%" (
-  powershell -NoProfile -Command ^
-    "$p='%~dp0%INI_FILE%';$o=new-object System.Collections.Generic.List[string];if(Test-Path $p){Get-Content $p|%{$_=$_.Trim();if($_ -and $_ -notmatch '^\s*;'){if($_ -match '^\[(.+)\]$'){ }elseif($_ -match '^\s*([^=]+)\s*=\s*(.*)\s*$'){ $k=$Matches[1].Trim(); $v=$Matches[2].Trim(); $o.Add('set '+$k+'=\"'+$v+'\"') }}}};[IO.File]::WriteAllLines($env:TEMP+'\\remoto.env.cmd',$o)" 
-  call "%temp%\remoto.env.cmd"
+REM SERVER_URL: Base URL where install.ps1 is hosted (WITHOUT the filename)
+REM IMPORTANT: This should be the DIRECTORY path, not the full file path
+REM Example: If your install.ps1 is at https://yoursite.com/subfolder/install.ps1
+REM          Then SERVER_URL should be: https://yoursite.com/subfolder
+REM The script will automatically append "/install.ps1" to this URL
+SET "SERVER_URL=http://yourserver.com"
+
+SET "RUSTDESK_PASSWORD=YourPasswordHere"
+SET "RUSTDESK_CONFIG=YourConfigStringHere"
+SET "API_KEY=YourAPIKeyHere"
+SET "MAIL_SCRIPT_URL=https://yourserver.com/FilesForMailSend/rustdesk-mail.php"
+SET "SEND_EMAIL=yes"
+
+REM ============================================================================
+REM READ .INI FILE (IF EXISTS AND USE_INI_FILE=yes)
+REM ============================================================================
+
+IF /I "%USE_INI_FILE%"=="yes" (
+    IF EXIST "%~dp0remoto.ini" (
+        echo [INFO] remoto.ini file found. Loading settings...
+        
+        REM Read settings from .ini file
+        FOR /F "usebackq tokens=1,2 delims==" %%A IN ("%~dp0remoto.ini") DO (
+            SET "%%A=%%B"
+        )
+        echo [OK] Settings loaded from remoto.ini
+    ) ELSE (
+        echo [WARNING] remoto.ini file not found. Using default script settings.
+    )
+) ELSE (
+    echo [INFO] .ini file usage disabled. Using default script settings.
 )
 
-set "c-temp=C:\Temp\RustDesk"
-if not exist "%c-temp%\." mkdir "%c-temp%"
+REM ============================================================================
+REM ENVIRONMENT PREPARATION
+REM ============================================================================
+
+SET "c-temp=%SystemDrive%\Temp\RustDesk"
+echo [INFO] Preparing temporary directory: %c-temp%
+
+IF NOT EXIST "%c-temp%\" (
+    mkdir "%c-temp%"
+    echo [OK] Directory created: %c-temp%
+) ELSE (
+    echo [OK] Directory already exists: %c-temp%
+)
+
 cd /d "%c-temp%"
-if exist "install.ps1" del "install.ps1"
+echo [INFO] Current directory: %CD%
 
-powershell -NoProfile -Command ^
-  "$content=@'
-$ErrorActionPreference='SilentlyContinue'
-$PSDefaultParameterValues['*:Encoding']='utf8BOM'
-$org=$env:ORG_NAME
-$tech=$env:TECH_NAME
-$cfg=$env:RUSTDESK_CFG
-$pw=$env:RUSTDESK_PW
-$mailMode=$env:MAIL_MODE
-$mailUrl=$env:MAIL_URL
-$mailToken=$env:MAIL_TOKEN
-$mailTo=$env:MAIL_TO
-$mailFrom=$env:MAIL_FROM
-$smtpHost=$env:SMTP_HOST
-$smtpPort=$env:SMTP_PORT
-$smtpUser=$env:SMTP_USER
-$smtpPass=$env:SMTP_PASS
-$smtpTls=$env:SMTP_TLS
-if([string]::IsNullOrWhiteSpace($pw)){ $chars=(65..90)+(97..122)+(48..57); $pw=-join((1..12|%{[char]($chars|Get-Random)}})) }
-$url='https://github.com/rustdesk/rustdesk/releases/latest'
-$request=[System.Net.WebRequest]::Create($url)
-$response=$request.GetResponse()
-$realTagUrl=$response.ResponseUri.OriginalString
-$RDLATEST=$realTagUrl.split('/')[-1].Trim('v')
-$installed=$null
-try{ $installed=(Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\RustDesk\\').Version }catch{}
-function Apply-ConfigAndNotify{
-  Set-Location "$env:ProgramFiles\\RustDesk"
-  if($cfg){ .\\rustdesk.exe --config $cfg }
-  if($pw){ .\\rustdesk.exe --password $pw }
-  $id=(.\\rustdesk.exe --get-id)
-  if($mailMode -eq 'php' -and $mailUrl -and $mailToken){
-    try{ Invoke-WebRequest -Uri ($mailUrl+'?id='+$id+'&key='+$mailToken+'&org='+$org+'&tech='+$tech) | Out-Null }catch{}
-  }elseif($mailMode -eq 'smtp' -and $smtpHost -and $mailTo -and $mailFrom){
-    $body='RustDesk ID: '+$id+'; Org: '+$org+'; Tech: '+$tech
-    $cred=$null
-    if($smtpUser -and $smtpPass){ $secure=$smtpPass|ConvertTo-SecureString -AsPlainText -Force; $cred=New-Object System.Management.Automation.PSCredential($smtpUser,$secure) }
-    try{ Send-MailMessage -From $mailFrom -To $mailTo -Subject 'RustDesk ID' -Body $body -SmtpServer $smtpHost -Port ([int]$smtpPort) -UseSsl:([bool]::Parse($smtpTls)) -Credential $cred }catch{}
-  }
-}
-if($installed -and $installed -eq $RDLATEST){
-  Set-Location "$env:ProgramFiles\\RustDesk"
-  Apply-ConfigAndNotify
-  .\\rustdesk.exe
-  exit
-}
-if(!(Test-Path 'C:\\Temp')){ New-Item -ItemType Directory -Force -Path 'C:\\Temp' | Out-Null }
-Set-Location 'C:\\Temp'
-Invoke-WebRequest ('https://github.com/rustdesk/rustdesk/releases/download/'+$RDLATEST+'/rustdesk-'+$RDLATEST+'-x86_64.exe') -OutFile 'rustdesk.exe'
-Start-Process .\\rustdesk.exe --silent-install
-Start-Sleep -Seconds 10
-Set-Location "$env:ProgramFiles\\RustDesk"
-Apply-ConfigAndNotify
-$ServiceName='rustdesk'
-$arrService=Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if($arrService -eq $null){
-  Start-Process .\\rustdesk.exe --install-service -Wait
-  try{ Stop-Process -Name 'RustDesk' }catch{}
-  Start-Sleep -Seconds 5
-}
-$arrService=Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if($arrService){ while($arrService.Status -ne 'Running'){ Start-Service $ServiceName; Start-Sleep -Seconds 5; $arrService.Refresh() } }
-.\\rustdesk.exe
-'@; [IO.File]::WriteAllText('install.ps1',$content,[Text.UTF8Encoding]::new($true))"
+REM ============================================================================
+REM DOWNLOAD INSTALLATION SCRIPT
+REM ============================================================================
 
-powershell -executionpolicy bypass -File "%c-temp%\install.ps1"
-exit
+IF EXIST "%c-temp%\install.ps1" (
+    echo [INFO] Removing old install.ps1...
+    del "%c-temp%\install.ps1"
+)
+
+echo [INFO] Downloading installation script from: %SERVER_URL%/install.ps1
+echo [INFO] Saving to: %c-temp%\install.ps1
+powershell -Command "try { $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest '%SERVER_URL%/install.ps1' -OutFile '%c-temp%\install.ps1' -UseBasicParsing -ErrorAction Stop; Write-Host '[OK] Download completed successfully' } catch { Write-Host '[ERROR] Download failed:' $_.Exception.Message; exit 1 }"
+
+IF NOT EXIST "%c-temp%\install.ps1" (
+    echo [ERROR] Failed to download installation script!
+    echo [ERROR] Check if the URL is correct: %SERVER_URL%/install.ps1
+    echo [ERROR] Expected file location: %c-temp%\install.ps1
+    pause
+    exit /B 1
+)
+
+REM ============================================================================
+REM VERIFY DOWNLOADED FILE
+REM ============================================================================
+
+echo [INFO] Verifying downloaded file...
+powershell -Command "$content = Get-Content '%c-temp%\install.ps1' -Raw -Encoding UTF8; $firstLine = ($content -split \"`n\")[0]; if ($firstLine -notmatch '^#|^param|^<#|^\s*$') { Write-Host '[ERROR] Downloaded file is not a valid PowerShell script!' -ForegroundColor Red; Write-Host '[ERROR] First line of file:' $firstLine -ForegroundColor Red; Write-Host '[ERROR] The server may be returning an error page instead of the script.' -ForegroundColor Red; Write-Host '[ERROR] Please check:' -ForegroundColor Yellow; Write-Host '  1. The URL is correct: %SERVER_URL%/install.ps1' -ForegroundColor Yellow; Write-Host '  2. The file exists on the server' -ForegroundColor Yellow; Write-Host '  3. The server is not redirecting or showing an error page' -ForegroundColor Yellow; exit 1 } else { Write-Host '[OK] File appears to be a valid PowerShell script' -ForegroundColor Green }"
+
+IF %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [ERROR] File validation failed!
+    pause
+    exit /B 1
+)
+
+REM ============================================================================
+REM EXECUTE POWERSHELL SCRIPT
+REM ============================================================================
+
+REM Double-check file exists before execution
+IF NOT EXIST "%c-temp%\install.ps1" (
+    echo [ERROR] Script file disappeared! Path: %c-temp%\install.ps1
+    dir "%c-temp%"
+    pause
+    exit /B 1
+)
+
+echo [INFO] Starting RustDesk installation...
+echo [INFO] Script location: %c-temp%\install.ps1
+echo [INFO] File size:
+dir "%c-temp%\install.ps1" | find "install.ps1"
+echo.
+
+REM Execute with full path and working directory set
+cd /d "%c-temp%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& { Set-Location '%c-temp%'; & '%c-temp%\install.ps1' -Password '%RUSTDESK_PASSWORD%' -Config '%RUSTDESK_CONFIG%' -ApiKey '%API_KEY%' -MailScriptUrl '%MAIL_SCRIPT_URL%' -SendEmail '%SEND_EMAIL%' }"
+
+IF %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [ERROR] Installation encountered problems. Error code: %ERRORLEVEL%
+    pause
+    exit /B %ERRORLEVEL%
+)
+
+echo.
+echo [OK] Process completed!
+exit /B 0
+
