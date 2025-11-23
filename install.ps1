@@ -6,19 +6,19 @@
 # ============================================================================
 
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$Password,
     
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$Config,
     
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [string]$ApiKey = "",
     
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [string]$MailScriptUrl = "",
     
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [string]$SendEmail = "yes"
 )
 
@@ -38,20 +38,20 @@ function Write-Log {
 
     # Define colors for each type
     $color = switch ($Type) {
-        "OK"      { "Green" }
-        "ERROR"   { "Red" }
+        "OK" { "Green" }
+        "ERROR" { "Red" }
         "WARNING" { "Yellow" }
-        "INFO"    { "Cyan" }
-        default   { "White" }
+        "INFO" { "Cyan" }
+        default { "White" }
     }
 
     # Define symbols for each type (ASCII compatible)
     $symbol = switch ($Type) {
-        "OK"      { "[OK]" }
-        "ERROR"   { "[ERROR]" }
+        "OK" { "[OK]" }
+        "ERROR" { "[ERROR]" }
         "WARNING" { "[WARN]" }
-        "INFO"    { "[INFO]" }
-        default   { "[*]" }
+        "INFO" { "[INFO]" }
+        default { "[*]" }
     }
 
     Write-Host "[$timestamp] " -NoNewline -ForegroundColor DarkGray
@@ -211,7 +211,8 @@ function Send-RustDeskIDByEmail {
         # Check if response contains success message
         if ($response.Content -match "OK:|SUCCESS") {
             Write-Log "Email sent successfully" "OK"
-        } else {
+        }
+        else {
             Write-Log "Email request completed (check your inbox)" "OK"
         }
 
@@ -343,8 +344,54 @@ if ($needsInstallation) {
     # Execute silent installation
     Write-Log "Installing RustDesk $latestVersion..." "INFO"
     try {
-        Start-Process -FilePath $installerPath -ArgumentList "--silent-install" -Wait -NoNewWindow
-        Write-Log "Installation completed" "OK"
+        $proc = Start-Process -FilePath $installerPath -ArgumentList "--silent-install" -PassThru -NoNewWindow
+        
+        $timeoutSeconds = 300
+        $elapsedSeconds = 0
+        $checkInterval = 2
+        $installed = $false
+
+        while (!$proc.HasExited -and $elapsedSeconds -lt $timeoutSeconds) {
+            Start-Sleep -Seconds $checkInterval
+            $elapsedSeconds += $checkInterval
+            
+            # Check if registry key exists (indicates installation finished)
+            # Check both 64-bit and 32-bit registry locations
+            $regExists = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\RustDesk"
+            $regWowExists = Test-Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\RustDesk"
+            
+            # Check file existence (handle 32-bit PowerShell on 64-bit OS)
+            $programFiles = if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }
+            $exeExists = Test-Path "$programFiles\RustDesk\rustdesk.exe"
+            
+            if ($regExists -or $regWowExists -or $exeExists) {
+                $installed = $true
+                break
+            }
+        }
+
+        if ($installed) {
+            Write-Log "Installation detected successfully" "OK"
+        }
+        elseif ($proc.HasExited) {
+            $exitCode = $proc.ExitCode
+            Write-Log "Installer process exited with code: $exitCode" "INFO"
+            
+            # Check one last time for file existence
+            $programFiles = if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }
+            if (Test-Path "$programFiles\RustDesk\rustdesk.exe") {
+                Write-Log "Installation verified by file existence" "OK"
+            }
+            elseif ($exitCode -eq 0) {
+                Write-Log "Installation process finished successfully" "OK"
+            }
+            else {
+                throw "Installation failed with exit code $exitCode"
+            }
+        }
+        else {
+            throw "Installation timed out after $timeoutSeconds seconds"
+        }
     }
     catch {
         Write-Log "Error during installation: $_" "ERROR"
